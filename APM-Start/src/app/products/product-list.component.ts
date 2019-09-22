@@ -1,10 +1,11 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
 
-import { Subscription, Observable, EMPTY } from 'rxjs';
+import { Subscription, Observable, EMPTY, BehaviorSubject, combineLatest } from 'rxjs';
 
 import { Product } from './product';
 import { ProductService } from './product.service';
-import { catchError } from 'rxjs/operators';
+import { catchError, filter, map, tap } from 'rxjs/operators';
+import { ProductCategoryService } from '../product-categories/product-category.service';
 
 @Component({
   templateUrl: './product-list.component.html',
@@ -15,24 +16,52 @@ export class ProductListComponent {
   pageTitle = 'Product List';
   errorMessage = '';
   categories;
+  private selectedCategorySubject = new BehaviorSubject<number>(0);
+  selectedCategoryAction$ = this.selectedCategorySubject.asObservable();
 
-  products$ = this.productService.products$
+  constructor(
+    private productService: ProductService,
+    private productCategoryService: ProductCategoryService) { }
+
+  // products$ = this.productService.productsWithCategory$
+  // .pipe(
+  //   catchError(err => {
+  //     this.errorMessage = err;
+  //     return EMPTY;
+  //   })
+  // );
+
+  products$ = combineLatest([
+    this.productService.productsWithAdd$,
+    this.selectedCategoryAction$
+  ])
   .pipe(
+    map(([products, selectedCategoryId]) =>
+      products.filter(product =>
+        selectedCategoryId ? product.categoryId === selectedCategoryId : true),
+    ),
     catchError(err => {
       this.errorMessage = err;
       return EMPTY;
     })
   );
 
-  sub: Subscription;
-
-  constructor(private productService: ProductService) { }
+  categories$ = this.productCategoryService.productCategories$
+  .pipe(
+    tap(category => console.log(`Categories: ${JSON.stringify(category)}`)),
+    catchError(err => {
+      this.errorMessage = err;
+      return EMPTY;
+    })
+  );
 
   onAdd(): void {
-    console.log('Not yet implemented');
+    this.productService.addProduct(null);
   }
 
   onSelected(categoryId: string): void {
-    console.log('Not yet implemented');
+    console.log(`Selected Category ID: ${categoryId}`);
+    this.selectedCategorySubject.next(+categoryId);
+    // this.selectedCategoryId = parseInt(categoryId, 10);
   }
 }
